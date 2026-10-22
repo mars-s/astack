@@ -1,0 +1,725 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Estimating launch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=block" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/gsap.min.js"></script>
+<style>
+  :root {
+    --orange: #D85608; --orange-light: #E06A10; --orange-hover: #B8480A;
+    --tint10: rgba(216,86,8,0.10); --tint20: rgba(216,86,8,0.20);
+    --base: #020617; --elevated: #0F172A; --subtle: #1E293B; --muted: #334155;
+    --t1: #FFFFFF; --t2: #F1F5F9; --t3: #CBD5E1; --t4: #94A3B8;
+    --l1: #0F172A; --l2: #334155; --l3: #64748B; --line: #E2E8F0; --paper: #FFFFFF; --paper2: #F8FAFC;
+    --ok: #10B981; --info: #60A5FA;
+    --sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  }
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  #stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: hidden; background: var(--base);
+    transform-origin: 0 0; font-family: var(--sans); color: var(--t1); -webkit-font-smoothing: antialiased; }
+  .qVal, .tRow, .sRow, #total, .qtTotal, #counter { font-variant-numeric: tabular-nums; }
+  #stage *, #stage *::before { box-sizing: border-box; }
+  .abs { position: absolute; }
+  .eyebrow { font-family: var(--mono); font-weight: 600; font-size: 22px; line-height: 1.4; letter-spacing: 0.08em; text-transform: uppercase; color: var(--orange-light); }
+  .grey { color: var(--t4); }
+  .card { position: absolute; background: var(--elevated); border: 1px solid var(--subtle); border-radius: 16px; }
+  .stack { display: inline-grid; justify-items: end; align-items: center; }
+  .stack > * { grid-area: 1 / 1; }
+  .chip { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 14px; border-radius: 9999px; font-size: 16px; font-weight: 600; white-space: nowrap; }
+  .chip svg { width: 16px; height: 16px; }
+  .chip.info { background: rgba(96,165,250,0.14); color: var(--info); }
+  .chip.ok { background: rgba(16,185,129,0.14); color: var(--ok); }
+  .chip.draft { background: var(--subtle); color: var(--t3); }
+  .chip.tint { background: var(--tint20); color: var(--orange-light); }
+  .ico { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* hook */
+  #grid line { stroke: var(--subtle); stroke-width: 1; }
+  #grid line.major { stroke: var(--muted); }
+  #hook { left: 160px; top: 0; height: 1080px; display: flex; flex-direction: column; justify-content: center; }
+  #hookEyebrow { margin-bottom: 28px; }
+  .mask { overflow: hidden; padding-bottom: 0.04em; }
+  .hookLine { font-weight: 800; font-size: 200px; line-height: 1.02; letter-spacing: -0.03em; }
+  .accent { color: var(--orange-light); }
+
+  /* captions */
+  #caps { left: 120px; top: 70px; width: 1680px; height: 180px; }
+  .cap { position: absolute; left: 0; top: 0; }
+  .cap .eyebrow { margin-bottom: 8px; }
+  .capTitle { font-weight: 700; font-size: 54px; line-height: 1.12; letter-spacing: -0.02em; text-wrap: balance; }
+  .capSub { font-size: 26px; line-height: 1.5; color: var(--t3); margin-top: 6px; }
+
+  /* plan sheet */
+  #sheet { left: 120px; top: 270px; width: 1140px; height: 740px; background: var(--paper); border-radius: 16px; overflow: hidden;
+    box-shadow: 0 40px 90px rgba(0,0,0,0.55); color: var(--l1); }
+  .sheetBar { height: 56px; display: flex; align-items: center; gap: 12px; padding: 0 24px; border-bottom: 1px solid var(--line); background: var(--paper2); }
+  .sheetBar .ico { width: 22px; height: 22px; color: var(--orange); }
+  .fname { font-size: 18px; font-weight: 600; }
+  .pages { margin-left: auto; font-family: var(--mono); font-size: 15px; color: var(--l3); letter-spacing: 0.04em; }
+  #plan { display: block; margin: 0 auto; }
+  .titleBlock { position: absolute; left: 0; right: 0; bottom: 0; height: 48px; display: flex; align-items: center; justify-content: space-between;
+    padding: 0 24px; border-top: 1px solid var(--line); font-size: 16px; font-weight: 600; color: var(--l2); }
+  .titleBlock .mono { font-family: var(--mono); font-weight: 500; font-size: 15px; color: var(--l3); }
+  #plan .wall { stroke: var(--l1); stroke-linecap: square; fill: none; }
+  #plan .meas .wall { stroke: var(--orange); }
+  #plan .rfill { fill: rgba(216,86,8,0.13); }
+  #plan .fix { fill: none; stroke: var(--l3); stroke-width: 1.3; }
+  #plan .door { fill: none; stroke: var(--l3); stroke-width: 1.3; }
+  #plan .leaf { fill: none; stroke: var(--l2); stroke-width: 2; }
+  #plan .wcut { stroke: var(--paper); }
+  #plan .wline { stroke: var(--l3); stroke-width: 1.2; }
+  #plan .rname { font: 600 17px var(--sans); fill: var(--l2); text-anchor: middle; }
+  #plan .rarea { font: 700 16px var(--sans); fill: var(--orange-hover); text-anchor: middle; font-variant-numeric: tabular-nums; }
+  #plan .dim { stroke: var(--l3); stroke-width: 1.2; fill: none; }
+  #plan .dimText { font: 600 16px var(--sans); fill: var(--l3); text-anchor: middle; }
+  #plan .scanBand { fill: rgba(216,86,8,0.10); }
+  #plan .scanLine { stroke: var(--orange); stroke-width: 3; }
+
+  /* takeoff panel */
+  #qty { left: 1300px; top: 270px; width: 500px; padding: 28px 32px 12px; }
+  .qHead { display: flex; align-items: center; justify-content: space-between; padding-bottom: 18px; border-bottom: 1px solid var(--subtle); }
+  .qRow { display: grid; grid-template-columns: 1fr auto; align-items: end; padding: 20px 0; border-bottom: 1px solid var(--subtle); }
+  .qRow:last-child { border-bottom: 0; }
+  .qLabel { font-size: 19px; font-weight: 500; color: var(--t4); margin-bottom: 4px; grid-column: 1 / 3; }
+  .qVal { font-size: 46px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; }
+  .unit { font-size: 22px; font-weight: 500; color: var(--t4); margin-left: 8px; letter-spacing: 0; }
+
+  /* estimate */
+  #est { left: 120px; top: 270px; width: 1140px; height: 740px; padding: 32px 40px; }
+  .estHead { display: flex; align-items: flex-start; justify-content: space-between; }
+  .estTitle { font-size: 34px; font-weight: 700; letter-spacing: -0.02em; margin-top: 6px; }
+  .estMeta { font-size: 19px; color: var(--t4); margin-top: 4px; }
+  .tGrid { display: grid; grid-template-columns: 1fr 190px 150px 200px; align-items: center; column-gap: 16px; }
+  .tHead { margin-top: 30px; padding-bottom: 12px; border-bottom: 1px solid var(--subtle); font-family: var(--mono); font-size: 15px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--t4); }
+  .tRow { height: 72px; border-bottom: 1px solid var(--subtle); font-size: 23px; }
+  .tRow .item { font-weight: 600; color: var(--t2); white-space: nowrap; }
+  .num { text-align: right; }
+  .tRow .q { color: var(--t3); }
+  .tRow .r { color: var(--orange-light); font-weight: 600; }
+  .tRow .a { font-weight: 700; color: var(--t1); }
+  .small { font-size: 17px; color: var(--t4); font-weight: 500; }
+  .tMore { height: 64px; font-size: 20px; color: var(--t4); font-weight: 500; }
+  #sum { left: 1300px; top: 270px; width: 500px; padding: 32px; }
+  .sRow { display: flex; justify-content: space-between; font-size: 22px; color: var(--t4); padding: 8px 0; }
+  .sRow b { color: var(--t3); font-weight: 600; }
+  .sTotalLabel { font-size: 20px; font-weight: 600; color: var(--t3); margin-top: 22px; padding-top: 22px; border-top: 1px solid var(--subtle); }
+  #total { font-size: 66px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; margin-top: 6px; transform-origin: 0 50%; display: inline-block; }
+  .rateNote { margin-top: 26px; display: flex; gap: 12px; align-items: center; font-size: 18px; color: var(--t4); }
+
+  /* quote */
+  #quote { left: 560px; top: 250px; width: 800px; height: 590px; padding: 44px 48px; overflow: hidden; }
+  #quote::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 4px; background: var(--orange); }
+  .qtTop { display: flex; justify-content: space-between; align-items: center; }
+  .qtTitle { font-size: 44px; font-weight: 700; letter-spacing: -0.02em; margin-top: 18px; }
+  .qtMeta { font-size: 20px; color: var(--t4); margin-top: 6px; }
+  .qtTotal { margin-top: 34px; padding-top: 28px; border-top: 1px solid var(--subtle); display: flex; justify-content: space-between; align-items: baseline; }
+  .qtTotal span { font-size: 22px; color: var(--t3); font-weight: 600; }
+  .qtTotal b { font-size: 68px; font-weight: 800; letter-spacing: -0.03em; }
+  .attach { margin-top: 26px; display: flex; align-items: center; gap: 16px; padding: 18px 20px; border-radius: 12px; background: var(--base); border: 1px solid var(--subtle); }
+  .attach .ico { width: 26px; height: 26px; color: var(--orange-light); }
+  .attach div b { display: block; font-size: 20px; font-weight: 600; color: var(--t2); }
+  .attach div span { font-size: 17px; color: var(--t4); }
+  .btnStack { margin-top: 30px; display: grid; }
+  .btnStack > * { grid-area: 1 / 1; }
+  .btn { height: 64px; border-radius: 8px; display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 22px; font-weight: 600; }
+  .btn .ico { width: 22px; height: 22px; }
+  .btn.primary { background: var(--orange); color: var(--t1); }
+  .btn.quiet { background: var(--subtle); color: var(--t3); }
+  #cursor { left: 0; top: 0; width: 34px; height: 40px; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5)); }
+  #toast { left: 710px; top: 905px; width: 500px; height: 84px; display: flex; align-items: center; gap: 16px; padding: 0 24px; border-radius: 12px; }
+  #toast .ico { width: 30px; height: 30px; color: var(--ok); flex: none; }
+  #toast b { display: block; font-size: 20px; font-weight: 600; }
+  #toast span { font-size: 17px; color: var(--t4); }
+
+  /* milestone */
+  #mileWrap { left: 0; top: 150px; width: 1920px; text-align: center; transform-origin: 50% 50%; }
+  .ebStack { display: inline-grid; justify-items: center; }
+  .ebStack > * { grid-area: 1 / 1; }
+  #counter { font-size: 132px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.05; margin-top: 10px; }
+  #mileSub { left: 0; top: 612px; width: 1920px; text-align: center; font-size: 40px; font-weight: 600; letter-spacing: -0.01em; color: var(--t3); }
+  #legend { left: 263px; top: 1012px; display: flex; align-items: center; gap: 12px; font-size: 17px; }
+  #legend i { width: 16px; height: 16px; border-radius: 3px; background: var(--orange); display: inline-block; }
+
+  /* outro */
+  #thanks { left: 0; top: 410px; width: 1920px; text-align: center; font-size: 72px; font-weight: 800; line-height: 1.08; letter-spacing: -0.03em; }
+  #logo { left: 742px; top: 330px; width: 437px; height: 150px; }
+  #cta1 { left: 0; top: 536px; width: 1920px; text-align: center; font-size: 38px; font-weight: 600; letter-spacing: -0.01em; color: var(--t2); }
+  #cta2 { left: 0; top: 596px; width: 1920px; text-align: center; font-size: 38px; font-weight: 700; letter-spacing: -0.01em; color: var(--orange-light); }
+  /* 9:16, switched on by ?format=9x16 */
+  #stage.v { width: 1080px; height: 1920px; }
+  .v #hook { left: 80px; height: 1920px; }
+  .v .hookLine { font-size: 168px; }
+  .v #caps { left: 80px; top: 240px; width: 920px; height: 260px; }
+  .v .capTitle { font-size: 58px; }
+  .v .capSub { font-size: 28px; }
+  .v #sheet { left: 80px; top: 520px; width: 920px; height: 660px; }
+  .v #qty { left: 80px; top: 1210px; width: 920px; padding: 24px 28px 4px; display: grid; grid-template-columns: 1fr 1fr; column-gap: 36px; }
+  .v .qHead { grid-column: 1 / 3; }
+  .v .qRow:nth-last-child(-n+2) { border-bottom: 0; }
+  .v #est { left: 80px; top: 500px; width: 920px; height: 720px; padding: 28px 32px; }
+  .v .tGrid { grid-template-columns: 1fr 150px 118px 150px; column-gap: 12px; }
+  .v .tRow { font-size: 21px; }
+  .v .small { font-size: 15px; }
+  .v #sum { left: 80px; top: 1250px; width: 920px; padding: 28px 32px; }
+  .v .sBody { display: grid; grid-template-columns: 1fr 1fr; column-gap: 40px; align-items: end; }
+  .v .sTotalLabel { margin-top: 0; padding-top: 0; border-top: 0; }
+  .v #quote { left: 80px; top: 520px; width: 920px; }
+  .v #toast { left: 290px; top: 1160px; }
+  .v #mileWrap { top: 380px; width: 1080px; }
+  .v #counter { font-size: 116px; }
+  .v #mileSub { top: 1050px; width: 1080px; padding: 0 90px; }
+  .v #thanks { top: 893px; width: 1080px; font-size: 62px; }
+  .v #logo { left: 321px; top: 780px; }
+  .v #cta1 { top: 986px; width: 1080px; font-size: 34px; }
+  .v #cta2 { top: 1040px; width: 1080px; font-size: 36px; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <svg id="grid" class="abs" width="1920" height="1080" viewBox="0 0 1920 1080" style="left:0;top:0"></svg>
+  <canvas id="wall" class="abs" style="left:0;top:0;width:1920px;height:1080px"></canvas>
+
+  <div id="hook" class="abs">
+    <div class="eyebrow" id="hookEyebrow">Build Paperless estimating</div>
+    <div class="mask"><div class="hookLine" id="hook1">Plans in.</div></div>
+    <div class="mask"><div class="hookLine accent" id="hook2">Quote out.</div></div>
+  </div>
+
+  <div id="caps" class="abs">
+    <div class="cap" id="cap1"><div class="eyebrow">01&nbsp;&nbsp;Plans</div><div class="capTitle">Upload the PDF plans.</div></div>
+    <div class="cap" id="cap2"><div class="eyebrow">02&nbsp;&nbsp;Takeoff</div><div class="capTitle">Paperless AI measures every room.</div><div class="capSub" id="cap2sub">You check every number before it’s priced.</div></div>
+    <div class="cap" id="cap3"><div class="eyebrow">03&nbsp;&nbsp;Pricing</div><div class="capTitle">Priced from your own rates.</div></div>
+    <div class="cap" id="cap4"><div class="eyebrow">04&nbsp;&nbsp;Quote</div><div class="capTitle">Send the quote.</div><div class="capSub" id="cap4sub">Accepted? It’s a project in one click.</div></div>
+  </div>
+
+  <div id="sheet" class="abs">
+    <div class="sheetBar">
+      <svg class="ico" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
+      <span class="fname">Lot-9-Kestrel-Rise-plans.pdf</span>
+      <span class="pages">SHEET 1 OF 6</span>
+    </div>
+    <svg id="plan" width="1092" height="636" viewBox="0 0 1092 636"></svg>
+    <div class="titleBlock"><span>A-101&nbsp;&nbsp;Ground floor plan</span><span class="mono">SCALE 1:100</span></div>
+  </div>
+
+  <div id="qty" class="card">
+    <div class="qHead"><span class="eyebrow grey" style="font-size:17px">Takeoff quantities</span><span class="chip tint">Paperless AI</span></div>
+  </div>
+
+  <div id="est" class="card">
+    <div class="estHead">
+      <div><div class="eyebrow grey" style="font-size:17px">Estimate</div><div class="estTitle">Lot 9 Kestrel Rise</div><div class="estMeta">4 bed single storey&nbsp;&nbsp;·&nbsp;&nbsp;240.0 m² under roof</div></div>
+      <span class="chip draft">Draft</span>
+    </div>
+    <div class="tGrid tHead"><span>Item</span><span class="num">Qty</span><span class="num">Rate</span><span class="num">Amount</span></div>
+    <div id="rows"></div>
+    <div class="tGrid tMore" id="more"><span>+ 38 more line items</span></div>
+  </div>
+
+  <div id="sum" class="card">
+    <div class="eyebrow grey" style="font-size:17px;margin-bottom:14px">Summary</div>
+    <div class="sBody">
+      <div><div class="sRow"><span>Subtotal ex GST</span><b id="subtotal">$0</b></div><div class="sRow"><span>GST</span><b id="gst">$0</b></div></div>
+      <div><div class="sTotalLabel">Total inc GST</div><div id="total">$0</div></div>
+    </div>
+    <div class="rateNote"><span class="chip tint">Your rate library</span><span>44 lines priced</span></div>
+  </div>
+
+  <div id="quote" class="card">
+    <div class="qtTop">
+      <span class="eyebrow grey" style="font-size:18px">Quote Q-0142</span>
+      <span class="stack" id="qStatus"><span class="chip draft" id="stDraft">Draft</span><span class="chip info" id="stSent">Sent</span><span class="chip ok" id="stOk"><svg class="ico" viewBox="0 0 24 24" style="stroke-width:3"><path d="M20 6 9 17l-5-5"/></svg>Accepted</span></span>
+    </div>
+    <div class="qtTitle">Lot 9 Kestrel Rise</div>
+    <div class="qtMeta">4 bed single storey&nbsp;&nbsp;·&nbsp;&nbsp;44 line items&nbsp;&nbsp;·&nbsp;&nbsp;Valid for 30 days</div>
+    <div class="qtTotal"><span>Total inc GST</span><b>$486,420</b></div>
+    <div class="attach">
+      <svg class="ico" viewBox="0 0 24 24"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+      <div><b>Marked-up plans attached</b><span>A-101 Ground floor plan, takeoff overlay</span></div>
+    </div>
+    <div class="btnStack">
+      <div class="btn primary" id="btnSend"><svg class="ico" viewBox="0 0 24 24"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></svg>Send quote</div>
+      <div class="btn quiet" id="btnSent">Sent to client</div>
+      <div class="btn primary" id="btnConvert">Convert to project<svg class="ico" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></div>
+    </div>
+  </div>
+
+  <div id="toast" class="card">
+    <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+    <div><b>Project created</b><span>Lot 9 Kestrel Rise is ready to schedule</span></div>
+  </div>
+
+  <svg id="cursor" class="abs" viewBox="0 0 20 26"><path d="M1 1v20.5l5.4-5.1 4 8.9 3.5-1.6-4-8.7h7.4Z" fill="#FFFFFF" stroke="#020617" stroke-width="1.4" stroke-linejoin="round"/></svg>
+
+  <div id="mileWrap" class="abs">
+    <div class="ebStack"><div class="eyebrow" id="mileEb1">Total estimated in Build Paperless</div><div class="eyebrow" id="mileEb2">Milestone</div></div>
+    <div id="counter">$486,420</div>
+  </div>
+  <div id="mileSub" class="abs">of building work estimated in Build Paperless</div>
+  <div id="legend" class="abs eyebrow grey"><i></i>1 square = $100,000 estimated</div>
+
+  <div id="thanks" class="abs">Thanks to every builder<br>who priced a job with us.</div>
+  <img id="logo" class="abs" src="logo-white.png" alt="Paperless">
+  <div id="cta1" class="abs">Estimating is live. Start your free trial.</div>
+  <div id="cta2" class="abs">buildpaperless.com.au</div>
+</div>
+
+<script>
+const params = new URLSearchParams(location.search);
+const RENDER = params.has('render');
+const FORMAT = params.get('format') === '9x16' ? '9x16' : '16x9';
+const V = FORMAT === '9x16';
+const W = V ? 1080 : 1920, H = V ? 1920 : 1080;
+const DURATION = 43;
+const $ = (s) => document.querySelector(s);
+if (V) $('#stage').classList.add('v');
+// Everything that differs between 16:9 and 9:16, besides the CSS under .v (set by ?format=9x16)
+const LAYOUT = V ? {
+  plan: { M: 36, w: 920, h: 556 }, sheetFrom: { x: 0, y: 160 }, panelFrom: { x: 0, y: 50 },
+  sheetExit: { y: -60 }, panelExit: { y: 40 },
+  grid: { cols: 25, rows: 40, cell: 19, gap: 5, y0: 620, wx: 1.6, wy: 1 },
+  clipY: 605, burst: [540, 482], hero: { y: 450, scale: 1.12 }, legendTop: 574,
+} : {
+  plan: { M: 43, w: 1092, h: 636 }, sheetFrom: { x: 270, y: 0 }, panelFrom: { x: 50, y: 0 },
+  sheetExit: { x: -60 }, panelExit: { x: 40 },
+  grid: { cols: 50, rows: 20, cell: 22, gap: 6, y0: 440, wx: 1, wy: 1.5 },
+  clipY: 410, burst: [960, 300], hero: { y: 210, scale: 1.35 }, legendTop: 1012,
+};
+// position inside the stage, ignoring transforms
+function pos(e) {
+  let x = 0, y = 0;
+  for (let n = e; n && n.id !== 'stage'; n = n.offsetParent) { x += n.offsetLeft; y += n.offsetTop; }
+  return { cx: x + e.offsetWidth / 2, cy: y + e.offsetHeight / 2 };
+}
+const NS = 'http://www.w3.org/2000/svg';
+function el(tag, attrs, parent, text) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text != null) e.textContent = text;
+  parent.appendChild(e);
+  return e;
+}
+const fmt = new Intl.NumberFormat('en-AU', { maximumFractionDigits: 0 });
+const money = (v) => '$' + fmt.format(Math.round(v));
+const clamp01 = (v) => Math.min(1, Math.max(0, v));
+
+// ---------------------------------------------------------------- the job (fictional)
+const M = LAYOUT.plan.M;            // plan px per metre
+const P = (v) => +(v * M).toFixed(2);
+const ROOMS = [
+  { name: 'Garage',  x: 0,   y: 0,   w: 6,   h: 5 },
+  { name: 'Entry',   x: 6,   y: 0,   w: 2.5, h: 5 },
+  { name: 'Bed 1',   x: 8.5, y: 0,   w: 5.5, h: 5 },
+  { name: 'Ensuite', x: 14,  y: 0,   w: 3,   h: 2.5, wet: true },
+  { name: 'WIR',     x: 14,  y: 2.5, w: 3,   h: 2.5 },
+  { name: 'Study',   x: 17,  y: 0,   w: 3,   h: 5 },
+  { name: 'Bed 2',   x: 0,   y: 5,   w: 4,   h: 3.5 },
+  { name: 'Bed 3',   x: 0,   y: 8.5, w: 4,   h: 3.5 },
+  { name: 'Hall',    x: 4,   y: 5,   w: 2.5, h: 4.6 },
+  { name: 'Bath',    x: 4,   y: 9.6, w: 2.5, h: 2.4, wet: true },
+  { name: 'Kitchen', x: 6.5, y: 5,   w: 4.5, h: 7 },
+  { name: 'Living',  x: 11,  y: 5,   w: 9,   h: 7 },
+];
+ROOMS.forEach((r) => { r.area = r.w * r.h; r.s = { p: 0 }; });
+const EXT = [[0,0,6.6,0],[7.5,0,20,0],[20,0,20,12],[20,12,0,12],[0,12,0,0]];
+const INT = [
+  [6,0,6,3.8],[6,4.6,6,5], [8.5,0,8.5,3.6],[8.5,4.4,8.5,5],
+  [14,0,14,1],[14,1.8,14,3.2],[14,4,14,5], [14,2.5,17,2.5], [17,0,17,5],
+  [0,5,6,5],[8.5,5,18,5],[18.9,5,20,5], [0,8.5,4,8.5],
+  [4,5,4,5.8],[4,6.6,4,8.7],[4,9.5,4,12], [4,9.6,4.6,9.6],[5.4,9.6,6.5,9.6], [6.5,6.2,6.5,12],
+];
+// hinge, closed end, open end
+const DOORS = [
+  [[6.6,0],[7.5,0],[6.6,0.9]], [[6,4.6],[6,3.8],[6.8,4.6]], [[8.5,4.4],[8.5,3.6],[9.3,4.4]],
+  [[14,1.8],[14,1],[14.8,1.8]], [[14,4],[14,3.2],[14.8,4]], [[18,5],[18.9,5],[18,4.1]],
+  [[4,5.8],[4,6.6],[3.2,5.8]], [[4,9.5],[4,8.7],[3.2,9.5]], [[4.6,9.6],[5.4,9.6],[4.6,10.4]],
+];
+const WINDOWS = [[0.7,0,5.3,0],[9.6,0,12.6,0],[15,0,16.2,0],[17.8,0,19.4,0],[20,6.2,20,10.8],[17.6,12,13.4,12],[9.8,12,7.4,12],[3.2,12,0.8,12],[0,7.6,0,5.9]];
+const seglen = ([x1, y1, x2, y2]) => Math.hypot(x2 - x1, y2 - y1);
+const WALL_LEN = [...EXT, ...INT].reduce((a, s) => a + seglen(s), 0);
+const AREA = ROOMS.reduce((a, r) => a + r.area, 0);
+const WET = ROOMS.filter((r) => r.wet).reduce((a, r) => a + r.area, 0);
+const ROOF = 276;
+const LINES = [
+  { item: 'Slab and footings',        qty: AREA,  rate: 165 },
+  { item: 'Wall frames and trusses',  qty: AREA,  rate: 112 },
+  { item: 'Metal roof sheeting',      qty: ROOF,  rate: 68 },
+  { item: 'Brick veneer',             qty: 172.8, rate: 145 },
+  { item: 'Plasterboard and cornice', qty: 612,   rate: 38 },
+  { item: 'Wet area tiling',          qty: 68,    rate: 96 },
+];
+LINES.forEach((l) => { l.amount = Math.round(l.qty * l.rate); l.s = { p: 0 }; });
+const SUBTOTAL = 442200, GST = 44220, TOTAL = SUBTOTAL + GST;   // 44 lines, 6 shown
+const MILESTONE = 100000000, SQUARE = 100000;
+
+// ---------------------------------------------------------------- tweened state, read by draw()
+const S = { scan: -0.6, roof: 0, total: 0, value: TOTAL, cam: 9, wall: 0, dim: 1, flash: 0, ring: 0, burst: 0 };
+
+// ---------------------------------------------------------------- build the scene
+function buildGrid() {
+  const g = $('#grid');
+  g.setAttribute('width', W); g.setAttribute('height', H); g.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  for (let x = 0; x <= W; x += 60) el('line', { x1: x, y1: 0, x2: x, y2: H, class: x % 300 === 0 ? 'major' : '' }, g);
+  for (let y = 0; y <= H; y += 60) el('line', { x1: 0, y1: y, x2: W, y2: y, class: y % 300 === 0 ? 'major' : '' }, g);
+}
+
+function buildPlan() {
+  const svg = $('#plan'), { w: pw, h: ph } = LAYOUT.plan;
+  svg.setAttribute('width', pw); svg.setAttribute('height', ph); svg.setAttribute('viewBox', `0 0 ${pw} ${ph}`);
+  const defs = el('defs', {}, svg);
+  const clip = el('clipPath', { id: 'scanClip' }, defs);
+  const clipRect = el('rect', { x: -200, y: -200, width: 0, height: 1000 }, clip);
+  const rx = (pw - P(21.3)) / 2 + P(1.3), ry = (ph - P(13.55)) / 2 + P(1.55);   // centre plan plus dimension lines
+  const root = el('g', { transform: `translate(${rx.toFixed(1)} ${ry.toFixed(1)})` }, svg);
+  const layer = (cls) => el('g', { class: cls }, root);
+  const gFill = layer('fills'), gFix = layer('fixtures'), gWall = layer('walls'), gMeas = layer('meas'),
+        gWin = layer('wins'), gDoor = layer('doors'), gLab = layer('labels'), gDim = layer('dims'), gScan = layer('scan');
+  gMeas.setAttribute('clip-path', 'url(#scanClip)');
+
+  ROOMS.forEach((r) => {
+    r.fill = el('rect', { x: P(r.x + 0.08), y: P(r.y + 0.08), width: P(r.w - 0.16), height: P(r.h - 0.16), class: 'rfill', opacity: 0 }, gFill);
+    const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+    r.cx = cx;
+    r.nameEl = el('text', { x: P(cx), y: P(cy) - 3, class: 'rname' }, gLab, r.name);
+    r.areaEl = el('text', { x: P(cx), y: P(cy) + 18, class: 'rarea', opacity: 0 }, gLab, '0.0 m²');
+  });
+  [[7.6, 9.6, 2.4, 0.9, 0.1], [6.5, 11.35, 4.5, 0.65, 0], [17.2, 0.25, 2.6, 0.6, 0]]
+    .forEach(([x, y, w, h, rx]) => el('rect', { x: P(x), y: P(y), width: P(w), height: P(h), rx: P(rx), class: 'fix draw' }, gFix));
+
+  const wall = (s, ext, parent) => el('line', { x1: P(s[0]), y1: P(s[1]), x2: P(s[2]), y2: P(s[3]), class: 'wall draw', 'stroke-width': ext ? 0.21 * M : 0.105 * M }, parent);
+  [gWall, gMeas].forEach((g) => { EXT.forEach((s) => wall(s, true, g)); INT.forEach((s) => wall(s, false, g)); });
+  gMeas.querySelectorAll('.draw').forEach((e) => e.classList.remove('draw'));
+
+  WINDOWS.forEach(([x1, y1, x2, y2]) => {
+    el('line', { x1: P(x1), y1: P(y1), x2: P(x2), y2: P(y2), class: 'wcut', 'stroke-width': 0.26 * M }, gWin);
+    const nx = y1 === y2 ? 0 : 0.07 * M, ny = y1 === y2 ? 0.07 * M : 0;
+    [-1, 1].forEach((k) => el('line', { x1: P(x1) + nx * k, y1: P(y1) + ny * k, x2: P(x2) + nx * k, y2: P(y2) + ny * k, class: 'wline' }, gWin));
+  });
+  DOORS.forEach(([h, c, o]) => {
+    const r = P(Math.hypot(c[0] - h[0], c[1] - h[1]));
+    const a0 = Math.atan2(o[1] - h[1], o[0] - h[0]), a1 = Math.atan2(c[1] - h[1], c[0] - h[0]);
+    const sweep = ((a1 - a0 + Math.PI * 2) % (Math.PI * 2)) < Math.PI ? 1 : 0;
+    el('path', { d: `M${P(h[0])} ${P(h[1])}L${P(o[0])} ${P(o[1])}`, class: 'leaf draw' }, gDoor);
+    el('path', { d: `M${P(o[0])} ${P(o[1])}A${r} ${r} 0 0 ${sweep} ${P(c[0])} ${P(c[1])}`, class: 'door draw' }, gDoor);
+  });
+
+  const dim = (d) => el('path', { d, class: 'dim draw' }, gDim);
+  dim(`M0 ${P(-0.95)}H${P(20)}M-6 ${P(-0.95) + 6}l12 -12M${P(20) - 6} ${P(-0.95) + 6}l12 -12M0 ${P(-1.3)}v${P(0.7)}M${P(20)} ${P(-1.3)}v${P(0.7)}`);
+  dim(`M${P(-0.95)} 0V${P(12)}M${P(-0.95) - 6} 6l12 -12M${P(-0.95) - 6} ${P(12) + 6}l12 -12M${P(-1.3)} 0h${P(0.7)}M${P(-1.3)} ${P(12)}h${P(0.7)}`);
+  el('text', { x: P(10), y: P(-1.2), class: 'dimText dimLabel' }, gDim, '20.0 m');
+  el('text', { x: P(-1.2), y: P(6), class: 'dimText dimLabel', transform: `rotate(-90 ${P(-1.2)} ${P(6)})` }, gDim, '12.0 m');
+
+  const band = el('rect', { y: P(-0.3), height: P(12.6), width: P(1.4), class: 'scanBand' }, gScan);
+  const line = el('line', { y1: P(-0.45), y2: P(12.45), class: 'scanLine' }, gScan);
+  gScan.setAttribute('opacity', 0);
+  return { clipRect, band, line, gScan };
+}
+
+function buildPanels() {
+  const qty = $('#qty');
+  const rows = [['Slab area', 'm²'], ['Wall length', 'm'], ['Wet areas', 'm²'], ['Roof area', 'm²']];
+  rows.forEach(([label, unit], i) => {
+    const row = document.createElement('div');
+    row.className = 'qRow';
+    row.innerHTML = `<div class="qLabel">${label}</div><div class="qVal"><span id="qv${i}">0.0</span><span class="unit">${unit}</span></div>
+      <div class="stack"><span class="chip info qSug">Suggested</span><span class="chip ok qOk"><svg class="ico" viewBox="0 0 24 24" style="stroke-width:3"><path d="M20 6 9 17l-5-5"/></svg>Accepted</span></div>`;
+    qty.appendChild(row);
+  });
+  $('#rows').innerHTML = LINES.map((l, i) => `<div class="tGrid tRow"><span class="item">${l.item}</span>
+    <span class="num q">${l.qty.toFixed(1)} <span class="small">m²</span></span>
+    <span class="num r">$${l.rate}<span class="small"> /m²</span></span>
+    <span class="num a" id="amt${i}">$0</span></div>`).join('');
+}
+
+// ---------------------------------------------------------------- canvas: one square per $100,000
+const canvas = $('#wall'), ctx = canvas.getContext('2d');
+const DPR = RENDER ? 1 : Math.min(2, window.devicePixelRatio || 1);
+canvas.width = W * DPR; canvas.height = H * DPR;
+canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+const G = { ...LAYOUT.grid };
+G.pitch = G.cell + G.gap;
+G.w = G.cols * G.pitch - G.gap; G.h = G.rows * G.pitch - G.gap;
+G.x0 = (W - G.w) / 2; G.cx = G.x0 + G.w / 2; G.cy = G.y0 + G.h / 2;
+let seed = 11;
+const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+const cells = [];
+for (let r = 0; r < G.rows; r++) for (let c = 0; c < G.cols; c++) {
+  const x = G.x0 + c * G.pitch, y = G.y0 + r * G.pitch;
+  const d = Math.hypot((x + G.cell / 2 - G.cx) * G.wx, (y + G.cell / 2 - G.cy) * G.wy);
+  cells.push({ x, y, d: Math.hypot(x + G.cell / 2 - G.cx, y + G.cell / 2 - G.cy), k: d * (1 + 0.45 * rnd()) });
+}
+cells.sort((a, b) => a.k - b.k).forEach((c, i) => (c.rank = i));
+const SPARKS = Array.from({ length: 90 }, () => {
+  const a = -Math.PI / 2 + (rnd() - 0.5) * Math.PI * 1.6, v = 380 + rnd() * 900;
+  return { vx: Math.cos(a) * v, vy: Math.sin(a) * v, size: 4 + rnd() * 7, life: 0.7 + rnd() * 0.9, hue: rnd() };
+});
+const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+const C_IDLE = hex('#0F172A'), C_NEW = hex('#FDF2E9'), C_MID = hex('#E06A10'), C_ON = hex('#D85608');
+const mix = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
+const rgb = (c) => `rgb(${c[0]},${c[1]},${c[2]})`;
+
+function drawWall() {
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  if (S.wall <= 0) return;
+  ctx.save();
+  ctx.globalAlpha = S.wall * S.dim;
+  ctx.beginPath(); ctx.rect(0, LAYOUT.clipY, W, H - LAYOUT.clipY); ctx.clip();  // keep the counter on clean ground while zoomed
+  ctx.translate(G.cx, G.cy); ctx.scale(S.cam, S.cam); ctx.translate(-G.cx, -G.cy);
+  const front = S.value / SQUARE;
+  const ringR = S.ring * 1000, ringFade = 1 - S.ring;
+  for (const c of cells) {
+    const age = front - c.rank;
+    let col = C_IDLE, scale = 1;
+    if (age > 0) {
+      const p = Math.min(1, age);
+      scale = 0.55 + 0.45 * p;
+      col = age < 6 ? mix(C_NEW, C_MID, age / 6) : mix(C_MID, C_ON, Math.min(1, (age - 6) / 30));
+      if (S.flash > 0) col = mix(col, C_NEW, S.flash * 0.85);
+      if (S.ring > 0) {
+        const bump = Math.exp(-(((c.d - ringR) / 70) ** 2)) * ringFade;
+        scale += 0.35 * bump; col = mix(col, C_NEW, bump * 0.9);
+      }
+    }
+    const s = G.cell * scale, o = (G.cell - s) / 2;
+    ctx.fillStyle = rgb(col);
+    ctx.beginPath(); ctx.roundRect(c.x + o, c.y + o, s, s, 4 * scale); ctx.fill();
+  }
+  ctx.restore();
+  if (S.burst > 0 && S.burst < 1) {
+    const t = S.burst * 1.6, [ox, oy] = LAYOUT.burst;
+    for (const p of SPARKS) {
+      const a = 1 - t / p.life;
+      if (a <= 0) continue;
+      ctx.globalAlpha = a;
+      ctx.fillStyle = p.hue < 0.55 ? '#D85608' : p.hue < 0.85 ? '#E06A10' : '#FDF2E9';
+      const x = ox + p.vx * t * 0.9, y = oy + p.vy * t + 900 * t * t;
+      ctx.fillRect(x - p.size / 2, y - p.size / 2, p.size, p.size);
+    }
+    ctx.globalAlpha = 1;
+  }
+}
+
+// ---------------------------------------------------------------- per-frame text and canvas
+let plan;
+function draw() {
+  const scanned = clamp01((S.scan + 0.6) / 21.2);
+  plan.clipRect.setAttribute('width', Math.max(0, 200 + P(S.scan)));
+  plan.band.setAttribute('x', P(S.scan) - P(1.4));
+  plan.line.setAttribute('x1', P(S.scan)); plan.line.setAttribute('x2', P(S.scan));
+  ROOMS.forEach((r) => (r.areaEl.textContent = (r.area * r.s.p).toFixed(1) + ' m²'));
+  const area = ROOMS.reduce((a, r) => a + r.area * r.s.p, 0);
+  const wet = ROOMS.reduce((a, r) => a + (r.wet ? r.area * r.s.p : 0), 0);
+  $('#qv0').textContent = area.toFixed(1);
+  $('#qv1').textContent = (WALL_LEN * scanned).toFixed(1);
+  $('#qv2').textContent = wet.toFixed(1);
+  $('#qv3').textContent = (ROOF * S.roof).toFixed(1);
+  LINES.forEach((l, i) => ($('#amt' + i).textContent = money(l.amount * l.s.p)));
+  $('#subtotal').textContent = money(SUBTOTAL * S.total);
+  $('#gst').textContent = money(GST * S.total);
+  $('#total').textContent = money(TOTAL * S.total);
+  $('#counter').textContent = money(S.value);
+  drawWall();
+}
+
+// ---------------------------------------------------------------- the film
+const CUES = [];
+const cue = (t, name, gain = 1, len) => CUES.push({ t: +t.toFixed(3), name, gain, ...(len ? { len } : {}) });
+
+function buildTimeline() {
+  const tl = gsap.timeline({ paused: true, defaults: { ease: 'power3.out' } });
+  const drawables = [...document.querySelectorAll('#grid line, #plan .draw')];
+  drawables.forEach((e) => { const L = e.getTotalLength(); e.style.strokeDasharray = L; e.style.strokeDashoffset = L; e.__len = L; });
+
+  // 0  hook
+  tl.to('#grid line', { strokeDashoffset: 0, duration: 1.6, ease: 'power2.inOut', stagger: { each: 0.014, from: 'center' } }, 0);
+  tl.fromTo('#grid', { opacity: 0.35 }, { opacity: 0.8, duration: 1.6 }, 0);
+  tl.fromTo('#hookEyebrow', { autoAlpha: 0, y: 18 }, { autoAlpha: 1, y: 0, duration: 0.7 }, 0.3);
+  tl.fromTo('#hook1', { yPercent: 110 }, { yPercent: 0, duration: 1, ease: 'power4.out' }, 0.5);
+  tl.fromTo('#hook2', { yPercent: 110 }, { yPercent: 0, duration: 1, ease: 'power4.out' }, 0.8);
+  tl.to(['#hook1', '#hook2'], { yPercent: -110, duration: 0.55, ease: 'power3.in', stagger: 0.08 }, 2.7);
+  tl.to('#hookEyebrow', { autoAlpha: 0, y: -12, duration: 0.4, ease: 'power2.in' }, 2.7);
+  cue(0.5, 'whoosh', 0.35); cue(2.7, 'whoosh', 0.55);
+
+  // 3.2  plans
+  const sf = LAYOUT.sheetFrom;
+  tl.fromTo('#sheet', { autoAlpha: 0, x: sf.x, y: sf.y - 70, scale: 1.05, rotation: -1.2 }, { autoAlpha: 1, x: sf.x, y: sf.y, scale: 1, rotation: 0, duration: 0.42, ease: 'power2.in' }, 3.08);
+  tl.to('#sheet', { x: 0, y: 0, duration: 0.85, ease: 'power3.inOut' }, 5.85);
+  tl.fromTo('#grid', { opacity: 0.8 }, { opacity: 0.45, duration: 0.6, immediateRender: false }, 3.2);
+  cue(3.5, 'thud');
+  capIn(tl, '#cap1', 3.35);
+  tl.to('#plan .wall.draw', { strokeDashoffset: 0, duration: 0.5, ease: 'power1.inOut', stagger: 0.035 }, 3.75);
+  tl.to('#plan .fix, #plan .leaf, #plan .door', { strokeDashoffset: 0, duration: 0.45, ease: 'power1.inOut', stagger: 0.03 }, 4.5);
+  tl.to('#plan .dim', { strokeDashoffset: 0, duration: 0.7, ease: 'power2.inOut' }, 4.9);
+  tl.fromTo('#plan .rname, #plan .dimLabel', { opacity: 0 }, { opacity: 1, duration: 0.4, stagger: 0.03 }, 4.95);
+
+  // 6  takeoff
+  capOut(tl, '#cap1', 5.85); capIn(tl, '#cap2', 6.0);
+  tl.fromTo('#qty', { autoAlpha: 0, ...LAYOUT.panelFrom }, { autoAlpha: 1, x: 0, y: 0, duration: 0.7 }, 6.0);
+  tl.fromTo('#qty .qSug', { autoAlpha: 0, scale: 0.85 }, { autoAlpha: 1, scale: 1, duration: 0.35, stagger: 0.1 }, 6.4);
+  tl.set('#qty .qOk', { autoAlpha: 0 }, 0);
+  tl.fromTo(plan.gScan, { opacity: 0 }, { opacity: 1, duration: 0.25 }, 6.15);
+  tl.fromTo(S, { scan: -0.6 }, { scan: 20.6, duration: 3.2, ease: 'none' }, 6.2);
+  tl.to(plan.gScan, { opacity: 0, duration: 0.3 }, 9.4);
+  cue(6.2, 'scan', 0.7, 3.2);
+  ROOMS.forEach((r, i) => {
+    const t = 6.2 + 3.2 * ((r.cx + 0.6) / 21.2);
+    tl.to(r.fill, { opacity: 1, duration: 0.4, ease: 'power2.out' }, t);
+    tl.to(r.areaEl, { opacity: 1, duration: 0.25 }, t);
+    tl.to(r.s, { p: 1, duration: 0.55, ease: 'power2.out' }, t);
+    cue(t, i % 2 ? 'tick-lo' : 'tick', 0.45);
+  });
+  tl.to(S, { roof: 1, duration: 0.6, ease: 'power2.out' }, 9.35);
+  cue(9.35, 'tick', 0.5);
+  tl.fromTo('#cap2sub', { autoAlpha: 0, y: 10 }, { autoAlpha: 1, y: 0, duration: 0.5 }, 9.8);
+  [0, 1, 2, 3].forEach((i) => {
+    const t = 10.15 + i * 0.2;
+    tl.to(`#qty .qRow:nth-of-type(${i + 2}) .qSug`, { autoAlpha: 0, scale: 0.9, duration: 0.2, ease: 'power2.in' }, t);
+    tl.fromTo(`#qty .qRow:nth-of-type(${i + 2}) .qOk`, { autoAlpha: 0, scale: 0.8 }, { autoAlpha: 1, scale: 1, duration: 0.35, ease: 'back.out(2)', immediateRender: false }, t + 0.12);
+    cue(t + 0.12, 'tick-lo', 0.6);
+  });
+
+  // 12  pricing
+  capOut(tl, '#cap2', 11.85); capIn(tl, '#cap3', 12.05);
+  tl.to('#sheet', { autoAlpha: 0, ...LAYOUT.sheetExit, scale: 0.97, duration: 0.5, ease: 'power2.in' }, 11.9);
+  tl.to('#qty', { autoAlpha: 0, ...LAYOUT.panelExit, duration: 0.45, ease: 'power2.in' }, 11.9);
+  cue(11.9, 'whoosh', 0.6);
+  tl.fromTo('#est', { autoAlpha: 0, y: 36 }, { autoAlpha: 1, y: 0, duration: 0.7 }, 12.3);
+  tl.fromTo('#sum', { autoAlpha: 0, y: 36 }, { autoAlpha: 1, y: 0, duration: 0.7 }, 12.45);
+  tl.fromTo('#rows .tRow, #more', { autoAlpha: 0, y: 14 }, { autoAlpha: 1, y: 0, duration: 0.4, stagger: 0.32 }, 12.7);
+  tl.fromTo('#rows .r', { scale: 0.7, transformOrigin: '100% 50%' }, { scale: 1, duration: 0.4, ease: 'back.out(2.2)', stagger: 0.32 }, 12.8);
+  LINES.forEach((l, i) => { tl.to(l.s, { p: 1, duration: 0.5, ease: 'power2.out' }, 12.82 + i * 0.32); cue(12.8 + i * 0.32, 'tick', 0.5); });
+  tl.to(S, { total: 1, duration: 1.4, ease: 'power3.out' }, 14.8);
+  tl.fromTo('#total', { scale: 1 }, { scale: 1.06, duration: 0.18, ease: 'power2.out', yoyo: true, repeat: 1 }, 15.95);
+  cue(16.0, 'pop', 0.8);
+
+  // 18  quote
+  capOut(tl, '#cap3', 17.85); capIn(tl, '#cap4', 18.05);
+  tl.to(['#est', '#sum'], { autoAlpha: 0, y: -24, scale: 0.97, duration: 0.45, ease: 'power2.in', stagger: 0.05 }, 17.9);
+  cue(17.9, 'whoosh', 0.6);
+  tl.fromTo('#quote', { autoAlpha: 0, y: 40, scale: 0.96 }, { autoAlpha: 1, y: 0, scale: 1, duration: 0.8 }, 18.25);
+  tl.set(['#stSent', '#stOk', '#btnSent', '#btnConvert'], { autoAlpha: 0 }, 0);
+  const btn = pos($('#btnSend'));
+  tl.fromTo('#cursor', { autoAlpha: 0, x: btn.cx + 600, y: btn.cy + 254 }, { autoAlpha: 1, x: btn.cx + 180, y: btn.cy + 6, duration: 0.95, ease: 'power2.inOut' }, 19.05);
+  click(tl, 20.05, '#btnSend');
+  tl.to('#btnSend', { autoAlpha: 0, duration: 0.2 }, 20.2);
+  tl.to('#btnSent', { autoAlpha: 1, duration: 0.25 }, 20.2);
+  tl.to('#stDraft', { autoAlpha: 0, duration: 0.2 }, 20.2);
+  tl.fromTo('#stSent', { scale: 0.8 }, { autoAlpha: 1, scale: 1, duration: 0.35, ease: 'back.out(2)', immediateRender: false }, 20.25);
+  tl.to('#cursor', { x: btn.cx + 270, y: btn.cy + 104, duration: 0.6, ease: 'power2.inOut' }, 20.35);
+  cue(20.25, 'whoosh', 0.35);
+  tl.to('#stSent', { autoAlpha: 0, duration: 0.2 }, 21.45);
+  tl.fromTo('#stOk', { scale: 0.7 }, { autoAlpha: 1, scale: 1, duration: 0.45, ease: 'back.out(2.4)', immediateRender: false }, 21.5);
+  cue(21.5, 'chime', 0.75);
+  tl.fromTo('#cap4sub', { autoAlpha: 0, y: 10 }, { autoAlpha: 1, y: 0, duration: 0.5 }, 21.6);
+  tl.to('#btnSent', { autoAlpha: 0, duration: 0.25 }, 21.7);
+  tl.fromTo('#btnConvert', { scale: 0.96 }, { autoAlpha: 1, scale: 1, duration: 0.35, immediateRender: false }, 21.7);
+  tl.to('#cursor', { x: btn.cx + 150, y: btn.cy + 12, duration: 0.5, ease: 'power2.inOut' }, 21.95);
+  click(tl, 22.5, '#btnConvert');
+  tl.fromTo('#toast', { autoAlpha: 0, y: 30 }, { autoAlpha: 1, y: 0, duration: 0.5 }, 22.65);
+  cue(22.65, 'pop', 0.7);
+
+  // 23.7  one quote among many
+  capOut(tl, '#cap4', 23.55);
+  tl.to(['#cursor', '#toast'], { autoAlpha: 0, duration: 0.3 }, 23.55);
+  const q = pos($('#quote'));
+  tl.to('#quote', { x: G.cx - q.cx, y: G.cy - q.cy, scale: 0.012, duration: 0.75, ease: 'power3.in' }, 23.7);
+  tl.to('#quote', { autoAlpha: 0, duration: 0.15 }, 24.3);
+  tl.to('#grid', { opacity: 0, duration: 0.8 }, 23.8);
+  cue(23.7, 'whoosh', 0.7);
+  tl.fromTo(S, { wall: 0 }, { wall: 1, duration: 0.25, ease: 'none' }, 24.25);
+  tl.fromTo(S, { cam: 9 }, { cam: 1, duration: 7.3, ease: 'power2.inOut' }, 24.3);
+  tl.fromTo('#mileWrap', { autoAlpha: 0, y: 24 }, { autoAlpha: 1, y: 0, duration: 0.7 }, 24.6);
+  tl.set('#mileEb2', { autoAlpha: 0 }, 0);
+  tl.fromTo('#legend', { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.6 }, 25.3);
+  const CLIMB_AT = 25, CLIMB = 7, climbEase = 'power2.in';
+  tl.fromTo(S, { value: TOTAL }, { value: MILESTONE, duration: CLIMB, ease: climbEase }, CLIMB_AT);
+  const ease = gsap.parseEase(climbEase);
+  for (let k = 1, step = 2.5e6; k * step < MILESTONE; k++) {
+    for (let i = 0; i <= 700; i++) {
+      if (TOTAL + (MILESTONE - TOTAL) * ease(i / 700) >= k * step) { cue(CLIMB_AT + CLIMB * i / 700, k % 2 ? 'tick' : 'tick-lo', 0.32); break; }
+    }
+  }
+  cue(CLIMB_AT, 'riser', 0.8);
+
+  // 32  the hit
+  const HIT = CLIMB_AT + CLIMB;
+  cue(HIT, 'hit');
+  tl.fromTo(S, { flash: 0 }, { flash: 1, duration: 0.06, ease: 'none' }, HIT);
+  tl.to(S, { flash: 0, duration: 0.9, ease: 'power2.out' }, HIT + 0.06);
+  tl.fromTo(S, { ring: 0 }, { ring: 1, duration: 1.5, ease: 'power1.out' }, HIT);
+  tl.fromTo(S, { burst: 0 }, { burst: 1, duration: 1.6, ease: 'none' }, HIT);
+  tl.fromTo('#counter', { scale: 1.12 }, { scale: 1, duration: 0.6, ease: 'power3.out', immediateRender: false }, HIT);
+  tl.to('#legend', { autoAlpha: 0, duration: 0.4 }, HIT + 0.5);
+  tl.to(S, { dim: 0.2, duration: 1.1, ease: 'power2.inOut' }, HIT + 0.6);
+  tl.to('#mileWrap', { ...LAYOUT.hero, duration: 1, ease: 'power3.inOut' }, HIT + 0.6);
+  tl.to('#mileEb1', { autoAlpha: 0, duration: 0.3 }, HIT + 0.6);
+  tl.to('#mileEb2', { autoAlpha: 1, duration: 0.4 }, HIT + 1.0);
+  tl.fromTo('#mileSub', { autoAlpha: 0, y: 16 }, { autoAlpha: 1, y: 0, duration: 0.7 }, HIT + 1.3);
+
+  // 35.4  thanks, logo, call to action
+  tl.to(['#mileWrap', '#mileSub'], { autoAlpha: 0, y: '-=30', duration: 0.5, ease: 'power2.in', stagger: 0.05 }, 35.3);
+  tl.fromTo('#thanks', { autoAlpha: 0, y: 30 }, { autoAlpha: 1, y: 0, duration: 0.9 }, 35.8);
+  tl.to('#thanks', { autoAlpha: 0, y: -24, duration: 0.45, ease: 'power2.in' }, 38.0);
+  tl.fromTo('#logo', { autoAlpha: 0, clipPath: 'inset(0% 100% 0% 0%)', y: 10 }, { autoAlpha: 1, clipPath: 'inset(0% 0% 0% 0%)', y: 0, duration: 1, ease: 'power3.inOut' }, 38.4);
+  cue(38.4, 'whoosh', 0.45); cue(39.0, 'chime', 0.4);
+  tl.fromTo('#cta1', { autoAlpha: 0, y: 16 }, { autoAlpha: 1, y: 0, duration: 0.7 }, 39.0);
+  tl.fromTo('#cta2', { autoAlpha: 0, y: 16 }, { autoAlpha: 1, y: 0, duration: 0.7 }, 39.25);
+  tl.to(S, { dim: 0.1, duration: 2, ease: 'power1.inOut' }, 38.2);
+  tl.to('#stage > *', { autoAlpha: 0, duration: 0.6, ease: 'power1.in' }, DURATION - 0.6);
+  tl.set({}, {}, DURATION);
+  return tl;
+}
+
+function capIn(tl, sel, t) {
+  tl.fromTo(`${sel} .eyebrow`, { autoAlpha: 0, y: 14 }, { autoAlpha: 1, y: 0, duration: 0.5 }, t);
+  tl.fromTo(`${sel} .capTitle`, { autoAlpha: 0, y: 22 }, { autoAlpha: 1, y: 0, duration: 0.7 }, t + 0.08);
+}
+function capOut(tl, sel, t) {
+  tl.to(`${sel} > *`, { autoAlpha: 0, y: -14, duration: 0.3, ease: 'power2.in', stagger: 0.03 }, t);
+}
+function click(tl, t, target) {
+  tl.to('#cursor', { scale: 0.82, duration: 0.09, ease: 'power2.out', yoyo: true, repeat: 1, transformOrigin: '10% 5%' }, t);
+  tl.to(target, { scale: 0.97, duration: 0.09, ease: 'power2.out', yoyo: true, repeat: 1 }, t);
+  cue(t, 'click', 0.9);
+}
+
+// ---------------------------------------------------------------- boot
+function fit() {
+  if (RENDER) return;
+  const s = Math.min(innerWidth / W, innerHeight / H);
+  $('#stage').style.transform = `translate(${(innerWidth - W * s) / 2}px, ${(innerHeight - H * s) / 2}px) scale(${s})`;
+}
+window.__ready = (async () => {
+  await Promise.all([400, 500, 600, 700, 800].map((w) => document.fonts.load(`${w} 40px Inter`)));
+  await $('#logo').decode().catch(() => {});
+  buildGrid();
+  plan = buildPlan();
+  buildPanels();
+  Object.assign($('#legend').style, { left: G.x0 + 'px', top: LAYOUT.legendTop + 'px' });
+  gsap.set(['#sheet', '#qty', '#est', '#sum', '#quote', '#toast', '#cursor', '#mileWrap', '#mileSub', '#legend', '#thanks', '#logo', '#cta1', '#cta2', '#cap2sub', '#cap4sub'], { autoAlpha: 0 });
+  gsap.set('#caps .cap > *', { autoAlpha: 0 });
+  const tl = buildTimeline();
+  window.__tl = tl;
+  window.__duration = DURATION;
+  Object.assign(window, { __format: FORMAT, __formats: ['16x9', '9x16'], __size: { w: W, h: H }, __audio: { music: 'synth' } });
+  window.__cues = CUES.sort((a, b) => a.t - b.t);
+  window.__seek = (t) => { tl.seek(t); draw(); };
+  tl.seek(0); draw();
+  if (!RENDER) {
+    fit(); addEventListener('resize', fit);
+    tl.eventCallback('onUpdate', draw);
+    tl.play(0);
+    addEventListener('keydown', (e) => { if (e.code === 'Space') tl.paused(!tl.paused()); if (e.key === 'r') tl.play(0); });
+    $('#stage').addEventListener('click', () => tl.play(0));
+  }
+  return true;
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Film</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=block" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/gsap.min.js"></script>
+<style>
+  /* Placeholder tokens. Replace with the project's design system before building scenes. */
+  :root { --bg: #0b0d12; --ink: #ffffff; --ink-2: #a3a9b6; --accent: #ff6a2b; --font: 'Inter', system-ui, sans-serif; }
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  #stage { position: absolute; left: 0; top: 0; overflow: hidden; background: var(--bg); color: var(--ink);
+    font-family: var(--font); transform-origin: 0 0; -webkit-font-smoothing: antialiased; }
+  #stage * { box-sizing: border-box; }
+  .abs { position: absolute; }
+  .layer { position: absolute; left: 0; top: 0; }
+  .mask { overflow: hidden; padding-bottom: 0.04em; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  #title { left: 140px; top: 300px; font-size: 150px; font-weight: 800; line-height: 1.02; letter-spacing: -0.03em; }
+  #count { left: 140px; top: 690px; font-size: 110px; font-weight: 800; letter-spacing: -0.03em; transform-origin: 0 50%; }
+  #outro { left: 0; top: 470px; width: 100%; text-align: center; font-size: 80px; font-weight: 800; letter-spacing: -0.03em; }
+  .accent { color: var(--accent); }
+
+  /* One block per format. The stage carries class f-<format>. */
+  .f-9x16 #title { left: 80px; top: 560px; font-size: 128px; }
+  .f-9x16 #count { left: 80px; top: 900px; font-size: 100px; }
+  .f-9x16 #outro { top: 880px; font-size: 72px; }
+  .f-1x1 #title, .f-4x5 #title { left: 90px; top: 250px; font-size: 118px; }
+  .f-1x1 #count, .f-4x5 #count { left: 90px; top: 560px; font-size: 96px; }
+  .f-4x5 #title { top: 330px; }
+  .f-4x5 #count { top: 640px; }
+  .f-1x1 #outro { top: 480px; font-size: 72px; }
+  .f-4x5 #outro { top: 610px; font-size: 72px; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="gl" class="layer"></canvas>
+  <svg id="art" class="layer"><path id="line" fill="none" stroke="var(--accent)" stroke-width="6" stroke-linecap="round"/></svg>
+  <canvas id="fx" class="layer"></canvas>
+  <div id="title" class="abs" data-layer="title" data-at="1.5">
+    <div class="mask"><div id="t1">Title line one.</div></div>
+    <div class="mask"><div id="t2" class="accent">Title line two.</div></div>
+  </div>
+  <div id="count" class="abs num" data-layer="count" data-at="5.5">0</div>
+  <div id="outro" class="abs" data-layer="outro" data-at="7">Your end card.</div>
+</div>
+
+<script>
+// ------------------------------------------------------------------ format
+const params = new URLSearchParams(location.search);
+const RENDER = params.has('render');
+const FORMATS = { '16x9': [1920, 1080], '9x16': [1080, 1920], '1x1': [1080, 1080], '4x5': [1080, 1350] };
+const FORMAT = FORMATS[params.get('format')] ? params.get('format') : '16x9';
+const [W, H] = FORMATS[FORMAT];
+const DURATION = 8;
+// Numbers that motion needs per format. Anything CSS can express stays in CSS under .f-<format>.
+const LAYOUT = {
+  '16x9': { line: 'M140 930 C 700 800, 1200 1040, 1780 860', burst: [760, 750] },
+  '9x16': { line: 'M80 1380 C 400 1200, 700 1560, 1000 1300', burst: [400, 960] },
+  '1x1':  { line: 'M90 900 C 400 780, 700 1000, 990 840', burst: [420, 620] },
+  '4x5':  { line: 'M90 1080 C 400 960, 700 1180, 990 1020', burst: [420, 700] },
+}[FORMAT];
+
+const $ = (s) => document.querySelector(s);
+const stage = $('#stage');
+stage.classList.add('f-' + FORMAT);
+Object.assign(stage.style, { width: W + 'px', height: H + 'px' });
+const fmt = new Intl.NumberFormat('en-AU');
+const css = (name) => getComputedStyle(stage).getPropertyValue(name).trim();
+const rgb01 = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+// Position inside the stage, ignoring transforms. Use it to aim motion at elements instead of hard-coding.
+function pos(e) {
+  let x = 0, y = 0;
+  for (let n = e; n && n !== stage; n = n.offsetParent) { x += n.offsetLeft; y += n.offsetTop; }
+  return { x, y, w: e.offsetWidth, h: e.offsetHeight, cx: x + e.offsetWidth / 2, cy: y + e.offsetHeight / 2 };
+}
+
+// ------------------------------------------------------------------ state: GSAP tweens these, draw() reads them
+const S = { t: 0, glow: 0, count: 0, burst: 0 };
+let seed = 7;
+const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+
+// ------------------------------------------------------------------ WebGL layer, rendered at half size and scaled up
+const glCanvas = $('#gl');
+glCanvas.width = W / 2; glCanvas.height = H / 2;
+Object.assign(glCanvas.style, { width: W + 'px', height: H + 'px' });
+const gl = glCanvas.getContext('webgl2', { preserveDrawingBuffer: true });
+let drawGL = () => {};
+if (gl) {
+  const shader = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); return s; };
+  const prog = gl.createProgram();
+  gl.attachShader(prog, shader(gl.VERTEX_SHADER, `#version 300 es
+    void main() { vec2 v = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2); gl_Position = vec4(v * 2. - 1., 0., 1.); }`));
+  gl.attachShader(prog, shader(gl.FRAGMENT_SHADER, `#version 300 es
+    precision highp float;
+    uniform vec2 uRes; uniform float uT, uGlow; uniform vec3 uBg, uAccent;
+    out vec4 o;
+    float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    float noise(vec2 p) { vec2 i = floor(p), f = fract(p), u = f * f * (3. - 2. * f);
+      return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y); }
+    void main() {
+      vec2 uv = gl_FragCoord.xy / uRes.y;
+      float n = noise(uv * 2. + vec2(uT * .15, -uT * .1)) * .6 + noise(uv * 5. - uT * .2) * .4;
+      o = vec4(mix(uBg, uAccent, smoothstep(.45, 1., n) * uGlow * .35), 1.);
+    }`));
+  gl.linkProgram(prog);
+  gl.useProgram(prog);
+  const u = (n) => gl.getUniformLocation(prog, n);
+  gl.uniform2f(u('uRes'), glCanvas.width, glCanvas.height);
+  gl.uniform3fv(u('uBg'), rgb01(css('--bg')));
+  gl.uniform3fv(u('uAccent'), rgb01(css('--accent')));
+  drawGL = () => { gl.uniform1f(u('uT'), S.t); gl.uniform1f(u('uGlow'), S.glow); gl.drawArrays(gl.TRIANGLES, 0, 3); };
+}
+
+// ------------------------------------------------------------------ Canvas 2D layer: a burst, moved by closed-form maths
+const fx = $('#fx'), ctx = fx.getContext('2d');
+const DPR = RENDER ? 1 : Math.min(2, devicePixelRatio || 1);
+fx.width = W * DPR; fx.height = H * DPR;
+Object.assign(fx.style, { width: W + 'px', height: H + 'px' });
+const ACCENT = css('--accent'), INK = css('--ink');
+const SPARKS = Array.from({ length: 80 }, () => {
+  const a = rnd() * Math.PI * 2, v = 300 + rnd() * 800;
+  return { vx: Math.cos(a) * v, vy: Math.sin(a) * v, size: 4 + rnd() * 8, life: 0.6 + rnd() * 0.8, warm: rnd() > 0.3 };
+});
+function drawFx() {
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  if (S.burst <= 0 || S.burst >= 1) return;
+  const t = S.burst * 1.4, [ox, oy] = LAYOUT.burst;
+  for (const p of SPARKS) {
+    const a = 1 - t / p.life;
+    if (a <= 0) continue;
+    ctx.globalAlpha = a;
+    ctx.fillStyle = p.warm ? ACCENT : INK;
+    ctx.fillRect(ox + p.vx * t - p.size / 2, oy + p.vy * t + 700 * t * t - p.size / 2, p.size, p.size);
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ------------------------------------------------------------------ SVG layer
+const art = $('#art');
+art.setAttribute('width', W); art.setAttribute('height', H); art.setAttribute('viewBox', `0 0 ${W} ${H}`);
+const line = $('#line');
+line.setAttribute('d', LAYOUT.line);
+const len = line.getTotalLength();
+Object.assign(line.style, { strokeDasharray: len, strokeDashoffset: len });
+
+// ------------------------------------------------------------------ every frame: text and canvases from state
+function draw() {
+  $('#count').textContent = fmt.format(Math.round(S.count));
+  drawGL();
+  drawFx();
+}
+
+// ------------------------------------------------------------------ the film
+const CUES = [];
+const cue = (t, name, gain = 1, len) => CUES.push({ t: +t.toFixed(3), name, gain, ...(len ? { len } : {}) });
+// The storyboard, in the film: one row per beat. afterburn's intake reads it as the beat table.
+const BEATS = [];
+const beat = (t, name, copy, motion) => BEATS.push({ t, name, copy, motion });
+
+function buildTimeline() {
+  const tl = gsap.timeline({ paused: true, defaults: { ease: 'power3.out' } });
+  tl.fromTo(S, { t: 0 }, { t: DURATION, duration: DURATION, ease: 'none' }, 0);
+  tl.fromTo(S, { glow: 0 }, { glow: 1, duration: 2.5, ease: 'power1.inOut' }, 0);
+
+  beat(0, 'title', 'Title line one. Title line two.', 'lines rise out of masks');
+  tl.fromTo('#t1', { yPercent: 110 }, { yPercent: 0, duration: 1, ease: 'power4.out' }, 0.3);
+  tl.fromTo('#t2', { yPercent: 110 }, { yPercent: 0, duration: 1, ease: 'power4.out' }, 0.5);
+  cue(0.3, 'whoosh', 0.4);
+
+  beat(1.2, 'climb', 'A count climbs to 1,000,000', 'line draws on, counter climbs with ticks');
+  tl.to(line, { strokeDashoffset: 0, duration: 2.2, ease: 'power2.inOut' }, 1.2);
+  tl.fromTo('#count', { autoAlpha: 0, y: 20 }, { autoAlpha: 1, y: 0, duration: 0.6 }, 1.8);
+  const CLIMB_AT = 2, CLIMB = 3, climbEase = 'power2.in', TARGET = 1e6;
+  tl.fromTo(S, { count: 0 }, { count: TARGET, duration: CLIMB, ease: climbEase }, CLIMB_AT);
+  const ease = gsap.parseEase(climbEase);  // a tick each time the count passes another tenth
+  for (let k = 1; k < 10; k++) {
+    for (let i = 0; i <= 600; i++) if (ease(i / 600) * TARGET >= (k * TARGET) / 10) { cue(CLIMB_AT + (CLIMB * i) / 600, 'tick', 0.35); break; }
+  }
+  cue(CLIMB_AT, 'riser', 0.6);
+
+  const HIT = CLIMB_AT + CLIMB;
+  beat(HIT, 'hit', '1,000,000', 'sparks burst, number settles');
+  cue(HIT, 'hit');
+  tl.fromTo(S, { burst: 0 }, { burst: 1, duration: 1.4, ease: 'none' }, HIT);
+  tl.fromTo('#count', { scale: 1.12 }, { scale: 1, duration: 0.6, immediateRender: false }, HIT);
+
+  beat(5.9, 'outro', 'Your end card.', 'title and count lift out, end card rises');
+  tl.to(['#title', '#count'], { autoAlpha: 0, y: -24, duration: 0.4, ease: 'power2.in', stagger: 0.05 }, 5.9);
+  tl.fromTo('#outro', { autoAlpha: 0, y: 24 }, { autoAlpha: 1, y: 0, duration: 0.7 }, 6.2);
+  cue(6.3, 'chime', 0.5);
+  tl.to('#stage > *', { autoAlpha: 0, duration: 0.5, ease: 'power1.in' }, DURATION - 0.5);
+  tl.set({}, {}, DURATION);
+  return tl;
+}
+
+// ------------------------------------------------------------------ boot: the contract render.mjs relies on
+function fit() {
+  const s = Math.min(innerWidth / W, innerHeight / H);
+  stage.style.transform = `translate(${(innerWidth - W * s) / 2}px, ${(innerHeight - H * s) / 2}px) scale(${s})`;
+}
+window.__ready = (async () => {
+  await Promise.all([400, 600, 800].map((w) => document.fonts.load(`${w} 40px Inter`)));
+  await Promise.all([...document.images].map((img) => img.decode().catch(() => {})));
+  gsap.set(['#count', '#outro'], { autoAlpha: 0 });
+  const tl = buildTimeline();
+  Object.assign(window, {
+    __tl: tl, __duration: DURATION, __format: FORMAT, __formats: Object.keys(FORMATS), __size: { w: W, h: H },
+    __cues: CUES.sort((a, b) => a.t - b.t),
+    __beats: BEATS.sort((a, b) => a.t - b.t),
+    __audio: { music: 'synth' },  // or false, or a file next to this page: { music: 'track.mp3' }
+    __seek: (t) => { tl.seek(t); draw(); },
+  });
+  tl.seek(0); draw();
+  if (!RENDER) {
+    fit(); addEventListener('resize', fit);
+    tl.eventCallback('onUpdate', draw);
+    tl.play(0);
+    addEventListener('keydown', (e) => { if (e.code === 'Space') tl.paused(!tl.paused()); if (e.key === 'r') tl.play(0); });
+    stage.addEventListener('click', () => tl.play(0));
+  }
+  return true;
+})();
+</script>
+</body>
+</html>

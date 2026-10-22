@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Film layers</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800&family=Geist+Mono:wght@400;500;600&family=Anton&family=Archivo+Black&family=Bebas+Neue&family=DM+Serif+Display:ital@0;1&family=Instrument+Serif:ital@0;1&family=Space+Grotesk:wght@500;700&family=Unbounded:wght@700;900&display=block" rel="stylesheet">
+<style>
+  :root { --green: #3fa873; --green-text: #52bd87; --mint: #9ff0c4; --ink: #ededef; --ink-dim: #a3a7ae; --ink-faint: #80858e;
+    --font: 'Geist', system-ui, sans-serif; --mono: 'Geist Mono', ui-monospace, monospace; }
+  html, body { margin: 0; background: transparent; overflow: hidden; }
+  #root { position: absolute; left: 0; top: 0; font-family: var(--font); -webkit-font-smoothing: antialiased; color: var(--ink); }
+  #root * { box-sizing: border-box; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+window.LAYERS = {};
+// helpers shared by scene files
+window.ease = {
+  out: (k) => 1 - Math.pow(1 - k, 3),
+  inOut: (k) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2),
+  back: (k) => { const c = 1.9; return 1 + (c + 1) * Math.pow(k - 1, 3) + c * Math.pow(k - 1, 2); },
+};
+window.clamp01 = (v) => Math.max(0, Math.min(1, v));
+// typed text: the first n characters, the newest `fresh` of them in a highlight colour
+window.typed = (text, n, fresh = 0, freshColor = 'var(--green-text)') => {
+  const k = Math.max(0, Math.min(text.length, Math.floor(n)));
+  const a = Math.max(0, k - fresh);
+  const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  return esc(text.slice(0, a)) + (k > a ? `<span style="color:${freshColor}">${esc(text.slice(a, k))}</span>` : '');
+};
+const scene = new URLSearchParams(location.search).get('scene');
+window.__ready = new Promise((resolve) => {
+  const s = document.createElement('script');
+  s.src = `scenes/${scene}.js`;
+  s.onload = async () => {
+    await document.fonts.ready;
+    const fams = ['Geist', 'Geist Mono', 'Anton', 'Archivo Black', 'Bebas Neue', 'DM Serif Display', 'Instrument Serif', 'Space Grotesk', 'Unbounded'];
+    await Promise.all(fams.flatMap((f) => ['400', '700'].map((w) => document.fonts.load(`${w} 40px "${f}"`).catch(() => {}))));
+    await Promise.all(['300', '500', '600', '800'].map((w) => document.fonts.load(`${w} 40px Geist`)));
+    await Promise.all((window.PRELOAD || []).map((src) => new Promise((r) => { const i = new Image(); i.onload = i.onerror = r; i.src = src; })));
+    resolve(true);
+  };
+  document.head.appendChild(s);
+});
+window.__show = (name, f) => {
+  const L = window.LAYERS[name], root = document.getElementById('root');
+  root.style.width = L.w + 'px'; root.style.height = L.h + 'px';
+  root.innerHTML = L.html(f);
+};
+</script>
+</body>
+</html>

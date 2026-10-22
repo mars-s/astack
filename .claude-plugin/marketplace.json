@@ -1,0 +1,16 @@
+{
+  "name": "astack",
+  "owner": {
+    "name": "Avinaba Das",
+    "url": "https://github.com/mars-s"
+  },
+  "description": "Motion film skills for Claude Code: preview a film in HTML, then give it a full motion graphics pass in Blender.",
+  "plugins": [
+    {
+      "name": "astack",
+      "source": "./plugins/astack",
+      "description": "Preview a film fast with html-video, then turn any preview into finished motion graphics with afterburn.",
+      "version": "0.1.0"
+    }
+  ]
+}
