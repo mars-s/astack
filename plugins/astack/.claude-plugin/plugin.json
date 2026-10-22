@@ -1,8 +1,8 @@
 {
   "name": "astack",
-  "displayName": "astack",
-  "version": "0.1.0",
-  "description": "Motion film skills. html-video builds a film as an HTML page and renders it to MP4, which doubles as the preview. afterburn takes any preview (an html-video film, a hyperframes render, any MP4) and rebuilds every beat in Blender with camera moves, transforms, depth, bloom and grain.",
+  "displayName": "astack (Avi's skills)",
+  "version": "0.2.0",
+  "description": "Avi's personal skills for Claude Code. html-video builds a film as an HTML page and renders it to MP4, which doubles as a fast preview. afterburn takes any preview (an html-video film, a hyperframes render, any MP4) and rebuilds every beat in Blender with camera moves, transforms, depth, bloom and grain.",
   "author": {
     "name": "Avinaba Das",
     "url": "https://github.com/mars-s"
@@ -10,5 +10,14 @@
   "homepage": "https://github.com/mars-s/astack",
   "repository": "https://github.com/mars-s/astack",
   "license": "MIT",
-  "keywords": ["video", "motion-graphics", "blender", "gsap", "html-video", "afterburn", "claude-code", "skills"]
+  "keywords": [
+    "avi",
+    "personal-skills",
+    "video",
+    "motion-graphics",
+    "blender",
+    "gsap",
+    "claude-code",
+    "skills"
+  ]
 }
