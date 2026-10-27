@@ -1,0 +1,4 @@
+interface:
+  display_name: "Slow shutter"
+  short_description: "Make grainy editorial photos with expressive blur"
+  default_prompt: "Use $slow-shutter to create a grainy editorial photo with strong directional motion blur, or apply the look to my uploaded image."

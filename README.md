@@ -7,6 +7,7 @@ Avi's personal skills for Claude Code. Like [pstack](https://github.com/michael-
 | Skill | What it does | Use it when |
 |---|---|---|
 | `astack:html-video` | Builds a film as one HTML page on a GSAP timeline and renders it frame by frame to MP4, with sound, in any aspect ratio. It ships finished clips, or a fast preview for afterburn. | Launch videos, product demos, animated stats, social clips, or a first cut of a bigger film |
+| `astack:slow-shutter` | Creates grainy editorial photographs with directional motion blur, or applies the look to an uploaded image. | Wonderful.ai-inspired photos, a readable subject among blurred people, panning shots, or abstract photographic backgrounds |
 | `astack:afterburn` | Takes any flat preview and rebuilds every beat as finished motion graphics in Blender. It keeps the preview's timing and words, and changes how each beat moves. | You have a draft, an animatic or a reference video, and it needs to look like a motion design studio made it |
 
 ## Install
@@ -19,7 +20,37 @@ claude plugin marketplace add mars-s/astack
 claude plugin install astack@astack
 ```
 
-Then ask Claude for a video, or call a skill by name, such as `/astack:afterburn`.
+Then ask Claude for a video or an editorial photo, or call a skill by name, such as `/astack:afterburn` or `/astack:slow-shutter`.
+
+## Making a photograph
+
+`slow-shutter` makes original images using the photographic principles seen on [Wonderful.ai](https://www.wonderful.ai/?scLang=en): directional blur, fine film grain, soft highlights and restrained colour. It accepts a scene description, a photo to edit, or a photo plus separate style references.
+
+```text
+/astack:slow-shutter Make a wide photo of a cyclist at dusk.
+Track the cyclist, with strong sideways blur in the street behind them.
+```
+
+```text
+/astack:slow-shutter Apply this look to my attached photo.
+Keep the person recognisable and blur the passing people strongly.
+```
+
+```text
+/astack:slow-shutter Make a heavily blurred photographic background.
+Muted blue and green, a small warm accent, no clear subject, no text.
+```
+
+| Treatment | Result |
+|---|---|
+| Selective motion | A readable subject with blurred movement around it. The default. |
+| Panning | A tracked subject with streaks through the background. |
+| Abstract sweep | Broad directional colour fields with grain and hints of a real place. |
+| Rotational motion | Blades or wheels blur along their curved path; the support stays readable. |
+
+An image generation and editing tool must be available in the host. Codex uses its built-in image tool. Claude Code needs an available image tool or connected image service; this plugin does not bundle a renderer or credentials. If rendering is unavailable, the skill provides a ready-to-run prompt and says so. Generative edits can change small details, so the skill checks the output and saves a new version of the source.
+
+The skill produces clean photographs by default. Add headings, buttons and readability overlays in your page. It includes original instructions and prompt recipes, with no copied Wonderful.ai images or logos. Repeatable test requests and inspection criteria are in [the behavioural checks](plugins/astack/skills/slow-shutter/evals/cases.md).
 
 ## Making a film
 
@@ -166,9 +197,10 @@ Then the steps. Each has a clear finish line, so nothing gets called done early.
 
 | Tool | Used by | Why |
 |---|---|---|
-| Node | both | Runs the renderer, intake, layer export and soundtrack |
-| Playwright with Chromium (`npm i -D playwright && npx playwright install chromium`) | both | Draws HTML frames and layers |
-| ffmpeg | both | Encoding, contact sheets, loudness |
+| Image generation/editing tool | slow-shutter | Creates photos and edits uploaded images; supplied by the host |
+| Node | both video skills | Runs the renderer, intake, layer export and soundtrack |
+| Playwright with Chromium (`npm i -D playwright && npx playwright install chromium`) | both video skills | Draws HTML frames and layers |
+| ffmpeg | both video skills | Encoding, contact sheets, loudness |
 | Blender 5.1 | afterburn | Builds and renders every scene |
 
 ## License

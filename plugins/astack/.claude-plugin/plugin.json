@@ -1,8 +1,8 @@
 {
   "name": "astack",
   "displayName": "astack (Avi's skills)",
-  "version": "0.2.0",
-  "description": "Avi's personal skills for Claude Code. html-video builds a film as an HTML page and renders it to MP4, which doubles as a fast preview. afterburn takes any preview (an html-video film, a hyperframes render, any MP4) and rebuilds every beat in Blender with camera moves, transforms, depth, bloom and grain.",
+  "version": "0.3.0",
+  "description": "Avi's personal skills for Claude Code. html-video builds and renders films in HTML. afterburn rebuilds previews as motion graphics in Blender. slow-shutter creates grainy editorial photos with directional motion blur, or applies the look to an uploaded image using an available image tool.",
   "author": {
     "name": "Avinaba Das",
     "url": "https://github.com/mars-s"
@@ -18,6 +18,9 @@
     "blender",
     "gsap",
     "claude-code",
-    "skills"
+    "skills",
+    "photography",
+    "image-generation",
+    "motion-blur"
   ]
 }

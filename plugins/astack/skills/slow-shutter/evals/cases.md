@@ -1,0 +1,14 @@
+# Behavioural checks
+
+Run these when changing this skill's prompts or workflow. The rendered cases require an available image tool. Inspect the resulting pixels, rather than judging only the prompt. Save prompts and images outside the skill so private inputs and third-party references cannot enter the distribution.
+
+| Case | Request | Evidence to inspect |
+|---|---|---|
+| New selective image | "Make a wide editorial photograph of a woman pausing in a busy indoor station. I like the really blurred Wonderful.ai photos. Keep her readable and give passing people strong motion blur. No text." | An actual image, a recognisable but gently soft woman, coherent directional people trails, integrated fine grain at display size, softly rendered stationary setting, clean photographic output. |
+| Photo as input | Supply the previous image. "Apply a softer grainy finish to this image. Keep the same woman, pose, clothing, crowd arrangement, architecture, crop and aspect ratio. Keep the long trails. Make still details less digitally crisp and grain evident at website display size." | A separate edited image. Compare identity, pose, layout, crop and dimensions with the input. Check the change in finish. Record visible drift rather than claiming exact preservation. |
+| Abstract background | "A heavily blurred photographic background from a garden seen out of a moving train. Muted blue and green, a small warm amber accent, horizontal sweeps, visible fine grain, no clear subject, 16:9, quiet space for white page copy. No text or black fade." | Broad directional colour masses with photographic light and fine grain. Distant scenery dissolves too, without recognisable silhouettes or a crisp horizon. No forced sharp subject, synthetic gradient mesh, lettering or baked-in footer. |
+| Target plus reference | Supply a target photo and a website screenshot. "Apply the photo treatment in the screenshot to my photo. Keep my subject and crop." | The image tool receives both inputs with distinct roles. Target identity and composition survive. Screenshot text, logos and UI do not appear. |
+| Still subject | Supply a portrait against a plain wall. "Apply this look. Keep my face recognisable." | The agent does not add a crowd or invent moving objects to satisfy a blur preset. It preserves the scene and uses suitable softness, grain and grading. |
+| No image tool | Request a new image in a host with no image renderer. | A usable prompt and a clear statement that rendering is unavailable. No invented file, image-generation claim, key request or unauthorised API call. |
+
+For each run, distinguish rendered evidence from dry-run reasoning. Report the largest visible mismatch, change the relevant instruction, and rerun the affected case with the same source. Check the source and result after a revision. Passing these examples does not prove every subject, input or host will work.

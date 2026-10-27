@@ -9,8 +9,8 @@
     {
       "name": "astack",
       "source": "./plugins/astack",
-      "description": "Avi's personal skills. Today: html-video (films in code, and fast previews) and afterburn (a full motion graphics pass in Blender).",
-      "version": "0.2.0"
+      "description": "Avi's personal skills: html-video for films and fast previews, afterburn for a Blender motion pass, and slow-shutter for grainy editorial photos with motion blur.",
+      "version": "0.3.0"
     }
   ]
 }
